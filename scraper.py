@@ -1,33 +1,42 @@
-import requests
-from bs4 import BeautifulSoup
+import asyncio
+from playwright.async_api import async_playwright
 
-# URL of the profile
-URL = "https://www.duolingo.com/profile/Stijn3s"
+NAME = "Stijn3s"
+URL = f"https://en.duolingo.com/profile/{NAME}"
 
-# Headers to mimic a real browser request
-HEADERS = {
-    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
-}
+async def scrape_duolingo():
+    async with async_playwright() as p:
+        browser = await p.chromium.launch(headless=True)
+        page = await browser.new_page()
 
-def scrape_duolingo():
-    response = requests.get(URL, headers=HEADERS)
-    
-    if response.status_code != 200:
-        print(f"Failed to fetch page. Status code: {response.status_code}")
-        return
-    
-    soup = BeautifulSoup(response.text, "html.parser")
-    
-    # Find the h4 above the div with "Dagreeks"
-    dagreeks_div = soup.find("div", string="Dagreeks")
-    if dagreeks_div:
-        h4_element = dagreeks_div.find_previous("h4")
-        if h4_element:
-            print("Text in h4:", h4_element.get_text(strip=True))
-        else:
-            print("No h4 found above 'Dagreeks'")
-    else:
-        print("'Dagreeks' not found on the page")
+        try:
+            await page.goto(URL, wait_until="networkidle")
+            text_content = await page.inner_text("body")
+            lines = text_content.split("\n")
 
-# Run the scraper
-scrape_duolingo()
+            def get_lines_above(term, count=1):
+                try:
+                    index = next(i for i, line in enumerate(lines) if term in line)
+                    return "\n".join(lines[max(index - count, 0):index])
+                except StopIteration:
+                    return f'Text "{term}" not found.'
+
+            data = {
+                "name": get_lines_above("Day streak", 6),
+                "dayStreak": get_lines_above("Day streak", 1),
+                "totalXP": get_lines_above("Total XP", 1),
+                "league": get_lines_above("Current league", 1),
+                "top3finishes": get_lines_above("Top 3 finishes", 1)
+            }
+
+            # Print results
+            for key, value in data.items():
+                print(f"{key}: {value}")
+        
+        except Exception as e:
+            print(f"An error occurred: {e}")
+        
+        finally:
+            await browser.close()
+
+asyncio.run(scrape_duolingo())
