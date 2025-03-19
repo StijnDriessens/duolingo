@@ -3,47 +3,85 @@ from playwright.async_api import async_playwright
 import re
 
 # Felix883985
-NAME = "Stijn3s"
+# Stijn3s
+NAME = "Felix883985"
 URL = f"https://en.duolingo.com/profile/{NAME}"
 URL_PROFILE = f"https://en.duolingo.com/profile/{NAME}"
 URL_COURSES = f"https://en.duolingo.com/profile/{NAME}/courses"
 
-async def scrape_duolingo():
+async def scrape_duolingo_account():
     async with async_playwright() as p:
         browser = await p.chromium.launch(headless=True)
         page = await browser.new_page()
 
         try:
+            # Go to the profile URL and wait until the page is loaded
             await page.goto(URL_PROFILE, wait_until="networkidle")
-            text_content = await page.inner_text("body")
-            lines = text_content.split("\n")
 
-            def get_lines_above(term, count=1):
-                try:
-                    index = next(i for i, line in enumerate(lines) if term in line)
-                    return "\n".join(lines[max(index - count, 0):index])
-                except StopIteration:
-                    return f'Text "{term}" not found.'
+            # Extract the username - Adjusted to follow the same pattern
+            name_locator = page.locator('h1[data-test="profile-username"] span')
+            await name_locator.wait_for(state="attached")  # Wait until the element is attached
+            name = await name_locator.text_content()
 
-            data = {
-                "name": get_lines_above("Day streak", 6),
-                "dayStreak": get_lines_above("Day streak", 1),
-                "totalXP": get_lines_above("Total XP", 1),
-                "league": get_lines_above("Current league", 1),
-                "top3finishes": get_lines_above("Top 3 finishes", 1)
-            }
+            if not name:
+                raise ValueError("Username not found!")
 
-            # Print results
-            for key, value in data.items():
-                print(f"{key}: {value}")
-        
+            # Extract statistics sections - follow the same approach for waiting and extracting
+            stats_sections = await page.locator('div._2Hzv5').all()
+
+            # Initialize statistics variables
+            day_streak = total_xp = league = week = top_3_finishes = "N/A"
+
+            # Loop through statistics sections to extract values
+            for section in stats_sections:
+                # Wait for the section to be attached
+                await section.wait_for(state="attached")
+
+                # Extract label (e.g., "Day streak", "Total XP", etc.)
+                label_locator = section.locator('div._3oUUc')
+                await label_locator.wait_for(state="attached")
+                label = await label_locator.text_content()
+
+                # Extract value (e.g., "700", "72071", etc.)
+                value_locator = section.locator('h4')
+                await value_locator.wait_for(state="attached")
+                value = await value_locator.text_content()
+
+                # Match the label and assign the correct value
+                if label == "Day streak":
+                    day_streak = value
+                elif label == "Total XP":
+                    total_xp = value
+                elif label == "Top 3 finishes":
+                    top_3_finishes = value
+                elif label == "Current league":
+                    league = value
+                else:
+                    print(f"label error: {label}")
+
+            # Extract the week number
+            week_locator = page.locator('text=Week')
+            await week_locator.wait_for(state="attached")
+            week_text = await week_locator.text_content()
+
+            # Use regex to find the number after "Week"
+            match = re.search(r'Week (\d+)', week_text)
+            if match:
+                week = match.group(1)  # Extracts the number after "Week"
+
+            # Print out the extracted information
+            print(f"Name: {name}")
+            print(f"DayStreak: {day_streak}")
+            print(f"TotalXP: {total_xp}")
+            print(f"League: {league} {week}")
+            print(f"Top3Finishes: {top_3_finishes}")
+
         except Exception as e:
             print(f"An error occurred: {e}")
-        
         finally:
             await browser.close()
 
-async def scrape_duolingo_language():
+async def scrape_duolingo_courses():
     async with async_playwright() as p:
         browser = await p.chromium.launch(headless=True)
         page = await browser.new_page()
@@ -76,6 +114,6 @@ async def scrape_duolingo_language():
 
 # Run both async functions together
 async def main():
-    await asyncio.gather(scrape_duolingo(), scrape_duolingo_language())
+    await asyncio.gather(scrape_duolingo_account(), scrape_duolingo_courses())
 
 asyncio.run(main())
