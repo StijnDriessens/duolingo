@@ -2,7 +2,7 @@ name: Scrape Duolingo Profile
 
 on:
   schedule:
-    - cron: "0 * * * *"  # Runs every hour
+    - cron: "0 7-23,0 * * *"  # Runs at 07:00, 08:00, ..., 23:00, 00:00
   workflow_dispatch:  # Allows manual trigger
 
 jobs:
