@@ -21,7 +21,14 @@ jobs:
       - name: Install Dependencies
         run: |
           pip install playwright
+          pip install pymongo  # Install pymongo to interact with MongoDB
           playwright install --with-deps  # Installs browsers too
 
       - name: Run Scraper
-        run: python scraper.py
+        env:
+          MONGO_USERNAME: ${{ secrets.MONGO_USERNAME }}
+          MONGO_PASSWORD: ${{ secrets.MONGO_PASSWORD }}
+          MONGO_CLUSTER: ${{ secrets.MONGO_CLUSTER }}
+          DUOLINGO_USERNAME: ${{ secrets.DUOLINGO_USERNAME }}
+        run: |
+          python scraper.py

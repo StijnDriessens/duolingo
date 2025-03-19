@@ -1,18 +1,66 @@
+import os
+from pymongo import MongoClient
 import asyncio
 from playwright.async_api import async_playwright
 import re
+from datetime import datetime
+from typing import List
 
-# Felix883985
-# Stijn3s
-NAME = "Felix883985"
-URL = f"https://en.duolingo.com/profile/{NAME}"
+USERNAME = os.getenv("MONGO_USERNAME")
+PASSWORD = os.getenv("MONGO_PASSWORD")
+CLUSTER = os.getenv("MONGO_CLUSTER")
+NAME = os.getenv("DUOLINGO_USERNAME")
 URL_PROFILE = f"https://en.duolingo.com/profile/{NAME}"
 URL_COURSES = f"https://en.duolingo.com/profile/{NAME}/courses"
+
+# Connect to MongoDB Atlas
+try:
+    uri = f"mongodb+srv://{USERNAME}:{PASSWORD}@{CLUSTER}.ijztv.mongodb.net/Duolingo?retryWrites=true&w=majority&appName=Duolingo"
+    client = MongoClient(uri)
+    db = client.Duolingo  # database
+    collection = db.Duolingo  # collection name
+    print("Successfully connected to MongoDB")
+except ConnectionError as e:
+    print(f"Error connecting to MongoDB: {e}")
+    exit(1)
+
+class Course:
+    def __init__(self, language, courseXP):
+        self.language = language
+        self.courseXP = courseXP
+
+class Profile:
+    def __init__(self, name, dayStreak, totalXP, league, leagueWeek, top3Finishes, courses: List[Course]):
+        self.name = name
+        self.dayStreak = dayStreak
+        self.totalXP = totalXP
+        self.league = league
+        self.leagueWeek = leagueWeek
+        self.top3Finishes = top3Finishes
+        self.courses = courses
+
+def save(profile: Profile):
+    try:
+        new_record = {
+            "name": profile.name,
+            "dayStreak": profile.dayStreak,
+            "totalXP": profile.totalXP,
+            "league": f"{profile.league} Week {profile.leagueWeek}",
+            "top3Finishes": profile.top3Finishes,
+            "course": profile.courses[0].language,
+            "courseXP": profile.courses[0].courseXP,
+            "createdAt": datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        }
+        result = collection.insert_one(new_record)
+        print(f"Inserted document with _id: {result.inserted_id}")
+    except Exception as e:
+        print(f"An error occurred while saving the data: {e}")
 
 async def scrape_duolingo_account():
     async with async_playwright() as p:
         browser = await p.chromium.launch(headless=True)
         page = await browser.new_page()
+        result = ""
 
         try:
             # Go to the profile URL and wait until the page is loaded
@@ -76,15 +124,18 @@ async def scrape_duolingo_account():
             print(f"League: {league} {week}")
             print(f"Top3Finishes: {top_3_finishes}")
 
+            result = Profile(name, day_streak, total_xp, league, week, top_3_finishes, await scrape_duolingo_courses())
         except Exception as e:
-            print(f"An error occurred: {e}")
+            print(f"An error occurred while webscraping the data: {e}")
         finally:
             await browser.close()
+            return result
 
 async def scrape_duolingo_courses():
     async with async_playwright() as p:
         browser = await p.chromium.launch(headless=True)
         page = await browser.new_page()
+        result = []
 
         try:
             await page.goto(URL_COURSES, wait_until="networkidle")
@@ -105,15 +156,17 @@ async def scrape_duolingo_courses():
                     if match:
                         xp_value = match.group(1)
                         print(f"Course: {language}, XP: {xp_value}")
+                        result.append(Course(language, xp_value))
 
         except Exception as e:
-            print(f"An error occurred: {e}")
+            print(f"An error occurred while webscraping the data: {e}")
 
         finally:
             await browser.close()
+            return result
 
 # Run both async functions together
 async def main():
-    await asyncio.gather(scrape_duolingo_account(), scrape_duolingo_courses())
+    save(await scrape_duolingo_account())
 
 asyncio.run(main())

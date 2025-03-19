@@ -3,9 +3,10 @@ from pymongo import MongoClient
 
 username = os.getenv('MONGO_USERNAME')
 password = os.getenv('MONGO_PASSWORD')
+cluster = os.getenv('MONGO_CLUSTER')
 
 # Replace with your MongoDB Atlas connection string
-uri = "mongodb+srv://{username}:{password}@duolingo.ijztv.mongodb.net/Duolingo?retryWrites=true&w=majority&appName=Duolingo"
+uri = "mongodb+srv://{username}:{password}@{cluster}.ijztv.mongodb.net/Duolingo?retryWrites=true&w=majority&appName=Duolingo"
 
 # Create a client and try to connect
 try:
