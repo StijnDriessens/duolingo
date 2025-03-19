@@ -24,4 +24,4 @@ jobs:
           playwright install --with-deps  # Installs browsers too
 
       - name: Run Scraper
-        run: python duolingo_scraper.py
+        run: python scraper.py
